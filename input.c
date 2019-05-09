@@ -12,19 +12,18 @@ typedef struct ThreadInput{
 } ThreadInput;
 
 
-void userInput (ThreadInput inp);
+void userInput (ThreadInput *);
 
 int main (int argc, char *argv[]) {
 
 
     // first begin by establishing the curses stuff
     initscr();
-    cbreak();
-    curs_set(0);
+    cbreak();   // no buffering user input
+    curs_set(0);  // make cursor invisible
 
-    // tracks most recent valid input
+    // tracks most recent valid input 
     char input_char = 'z';
-
 
     // prepare thread stuff
     pthread_t input_thread;                                     
@@ -44,23 +43,26 @@ int main (int argc, char *argv[]) {
         sleep(1);
         if (input_char == 'd') break;
     } 
+
+
     endwin(); 
+    exit(0);
 }
 
 
 // to be used with a thread. Collects input from user.
-// should also sanitize/allow only the direction keys
-void userInput (ThreadInput input) {
-   
+// only whitelisted keystrokes are passed to the main thread
+void userInput (ThreadInput *input) {
+
     char temp_ch; 
 
     while (1) {
         if ( (temp_ch = getch()) != ERR) {
             if (temp_ch == 'w' || temp_ch == 'a' || temp_ch == 's' || temp_ch == 'd') {
-                pthread_mutex_lock(&(input.mutex));
-                printf("new character: %c\n", temp_ch);
-                *(input.perm_char) = temp_ch;
-                pthread_mutex_unlock(&(input.mutex));
+                pthread_mutex_lock(&(input->mutex));
+                //printf("new character: %c\n", temp_ch);
+                *(input->perm_char) = temp_ch;
+                pthread_mutex_unlock(&(input->mutex));
             }
         }
     }
