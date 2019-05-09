@@ -12,7 +12,12 @@ typedef struct ThreadInput{
 } ThreadInput;
 
 
+// meant to be its own thread. Updates current char variable in main thread
 void userInput (ThreadInput *);
+
+// encloses the terminal with 
+// the given height, width
+void printBorder(int, int);
 
 int main (int argc, char *argv[]) {
 
@@ -34,11 +39,16 @@ int main (int argc, char *argv[]) {
     // create thread
     pthread_create(&input_thread, NULL, (void *)&userInput, (void *)&stuff);
 
+    // prepare screen 
+    int height, width;
+    getmaxyx(stdscr, height, width); 
+    printBorder(height, width); 
+    
     while (1) {
         pthread_mutex_lock(&mutex);
         //printf("human input: %c\n", input_char);
-        waddch(stdscr, input_char);
-        wrefresh(stdscr);
+        //waddch(stdscr, input_char);
+        //wrefresh(stdscr);
         pthread_mutex_unlock(&mutex);
         sleep(1);
         if (input_char == 'd') break;
@@ -66,4 +76,22 @@ void userInput (ThreadInput *input) {
             }
         }
     }
+}
+
+// height and width of the terminal
+void printBorder(int h, int w) {
+    
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            wmove(stdscr, i, j);
+            if (i == 0 || i == (h-1)) {         // printing the top and bottom
+                waddch(stdscr, '_');
+            }
+            else if (j == 0 || j == (w-1)) {    // printing the left and right
+                waddch(stdscr, '|');
+            }
+        }
+    }
+ 
+
 }
