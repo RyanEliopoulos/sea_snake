@@ -15,9 +15,8 @@
  *
  *  ----Functions
  *
- *  paint(): To draw the contents of the screen (can probably exclude the border)
- *  wash()  Remove all of the characters from the screen (probably going to replace the painted chars with a space (blank))
- *
+ *  evalState is not complete. Need to check if snake hits itself
+ *  slither is not complete. Still need eating logic
  */
 
 
@@ -52,6 +51,12 @@ typedef struct ItemNode {
     struct ItemNode* next_node;
 } ItemNode;
     
+
+// as titled
+void spawnItems (struct SnakeNode *, struct ItemNode **);
+
+// check for temrinal game condition
+void evalState (struct SnakeNode *);
 
 // updates snake and item values
 void slither (struct SnakeNode *, struct ItemNode *, char);
@@ -99,25 +104,109 @@ int main (int argc, char *argv[]) {
     struct ItemNode *items = NULL;
 
     while (1) {
-        wash(snake, items);
+        wash(snake, items);                     // replace all map symbols with a blank (' ')
         pthread_mutex_lock(&mutex);
-        slither (snake, items, input_char);
-        //  wash(snake, items)                  // replace all map symbols with a blank
-        //  slither(snake, items, input_char)   // movement calulations. Updates game state
-        //  evalState(snake, items)             // check if game has reached and end state. Exit if so.
-        //  spawnItems(snake, items)            // spawn food for the snake
-        //  paint(snake, items)                 // draw the new game state
+        slither (snake, items, input_char);     // movement calculations. Updates game state
+        evalState(snake);                       // check if game has reached and end state. Exit if so.
+        spawnItems(snake, &items);               // spawn food for the snake
         
         pthread_mutex_unlock(&mutex);
-        sleep(4);
-        paint(snake, items);
-        if (input_char == 'd') break;
-        sleep(2);
+        paint(snake, items);                    // draw new game state to terminal
+        if (input_char == 'q') break;
+        sleep(1);
+        struct ItemNode *temp = items;
+        int i = 0;
+        while (temp != NULL) {
+            //printf("counter is: %d\n", i++);
+            temp = temp->next_node;
+        }
+        //if (items != NULL) printf("items not null..yay!\n");
     } 
     endwin(); 
     exit(0);
 }
 
+
+void evalState (struct SnakeNode *snake) {
+
+    // check if snake hit the edge of the map
+    // if either coord is 0: dead
+    // if h = max h: dead
+    // if w = max w: dead
+    if (snake->h == 0 || snake->w == 0) {
+        printf("you lose!\n");
+        sleep(1);
+        endwin();
+        exit(0);
+    }
+    int mxheight, mxwidth;
+    getmaxyx(stdscr, mxheight, mxwidth); 
+    if (snake->h == mxheight || snake->w == mxwidth) {
+        printf(" you are SOL!\n"); 
+        sleep(1);
+        endwin();
+        exit(0);
+    }
+
+    // then check if snake hit itself
+}
+
+
+void spawnItems (struct SnakeNode *snake, struct ItemNode **items) {
+
+    // roll spawn chance
+    if ((rand() % 2) <= 2) {        // aiming for 25% chance of spawning item per tick.
+        //printf("item should be spawning\n");
+        // coord vars
+        int mxh, mxw;               
+        getmaxyx(stdscr, mxh, mxw);
+        int h = rand() % mxh;
+        int w = rand() % mxw;
+
+        while (1) {                 // loop until an available space is found
+            int fail = 0;
+            // first check the snake nodes   
+            struct SnakeNode *temp_s = snake;
+            while (temp_s!= NULL) {
+                if (temp_s->h == h && temp_s->w == w) {
+                    fail = 1;
+                    break;
+                }
+                temp_s = temp_s->next_node;
+            }
+            if (fail) continue;
+            // now check item list
+            struct ItemNode *temp_i = *items;
+            while (temp_i != NULL) {
+                if (temp_i->h == h && temp_i->w == w) {
+                    fail = 1;
+                    break;
+                }
+                temp_i = temp_i->next_node;
+            }
+            if (!fail) break;
+        }
+        //printf("new h: %d\n new w: %d\n", h, w);
+        // Now have a valid h, w pair.
+        // append the item to the list
+        struct ItemNode *newnode = malloc(sizeof(struct ItemNode));
+        newnode->h = h;
+        newnode->w = w;
+        newnode->next_node = NULL;
+
+        if (*items == NULL) {                // list is already empty    
+            //printf("yes, here indeed\n");
+            *items = newnode; 
+        }
+        else {
+            struct ItemNode *temp = *items;
+            while (temp->next_node != NULL) {         // find end of the list
+                temp = temp->next_node;
+            }
+            temp->next_node = newnode;
+        }
+    }
+}
 
 void slither (struct SnakeNode *snake, struct ItemNode *items, char direction) {
 
@@ -172,6 +261,13 @@ void slither (struct SnakeNode *snake, struct ItemNode *items, char direction) {
     // update coordinates of former tail
     currnode->h = next_h;
     currnode->w = next_w;
+
+
+    // now check if the snake has eaten anything
+    //  if (snake->h, snake->w coord pair in [items]
+    //  currnode->growth = 1;
+    //  //cut item from the items list
+    //  free(consumed_item)
 }
 
 void wash (struct SnakeNode *snake, struct ItemNode *items) {
@@ -250,7 +346,7 @@ void userInput (ThreadInput *input) {
     char temp_ch; 
     while (1) {
         if ( (temp_ch = getch()) != ERR) {
-            if (temp_ch == 'w' || temp_ch == 'a' || temp_ch == 's' || temp_ch == 'd') {
+            if (temp_ch == 'w' || temp_ch == 'a' || temp_ch == 's' || temp_ch == 'd' || temp_ch == 'q') {
                 pthread_mutex_lock(&(input->mutex));    
                 *(input->perm_char) = temp_ch;        
                 pthread_mutex_unlock(&(input->mutex));
