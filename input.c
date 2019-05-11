@@ -16,7 +16,7 @@
  *  ----Functions
  *
  *  evalState is not complete. Need to check if snake hits itself
- *  slither is not complete. Still need eating logic
+ *  slither is not complete. Still need eating logic. OK it eats but isn't growing
  */
 
 
@@ -110,14 +110,13 @@ int main (int argc, char *argv[]) {
         
     
     while (1) {
-        wash(snake, items);                     // replace all map symbols with a blank (' ')
         pthread_mutex_lock(&mutex);
+        wash(snake, items);                     // replace all map symbols with a blank (' ')
         slither (snake, &items, input_char);     // movement calculations. Updates game state
         evalState(snake);                       // check if game has reached and end state. Exit if so.
         spawnItems(snake, &items);               // spawn food for the snake
-        
-        pthread_mutex_unlock(&mutex);
         paint(snake, items);                    // draw new game state to terminal
+        pthread_mutex_unlock(&mutex);
         if (input_char == 'q') break;
         //sleep(1);
         nanosleep(&nap, NULL);
@@ -231,24 +230,37 @@ void slither (struct SnakeNode *snake, struct ItemNode **items, char direction) 
     }
    
     // propogate coordinates down the snake
-    int old_h, old_w;       
+    int old_h, old_w, old_growth;
+    int next_growth = 0;                // if 8 this tick, handled later in this fnx 
     struct SnakeNode *currnode = snake;
 
     while (currnode->next_node != NULL) {
         // save snake coords before updating
         old_h = currnode->h;
         old_w = currnode->w;
+        old_growth = currnode->growth;
+        if (old_growth == 1) {
+            //printf("growth at: %d, %d\n", old_h, old_w);
+        }
         // now update the snake node
         currnode->h = next_h;
         currnode->w = next_w;
+        currnode->growth = next_growth;
         currnode = currnode->next_node;
         // and what was once old is now new
         next_h = old_h; 
         next_w = old_w;
+        next_growth = old_growth;
     }
-
+    
+    currnode->h = next_h;
+    currnode->w = next_w;
+    currnode->growth = next_growth;
+     
+    
     // base case: tail node
-    if (currnode->growth) {     // transfer old tail node data to new before updating coordinates
+    if (currnode->growth == 1) {     // transfer old tail node data to new before updating coordinates
+        //printf("grdfsefsefsefowth node\n");
         currnode->growth = 0;
         old_h = currnode->h;
         old_w = currnode->w;
@@ -258,6 +270,7 @@ void slither (struct SnakeNode *snake, struct ItemNode **items, char direction) 
         temp->w = old_w;
         temp->next_node = NULL;
         temp->growth = 0;        
+        currnode->next_node = temp;
 
     }
     
@@ -294,6 +307,8 @@ void slither (struct SnakeNode *snake, struct ItemNode **items, char direction) 
     while (curritem != NULL) {
         //printf("this far?\n");
         if (curritem->h == snake->h && curritem->w == snake->w) {   // snake did eat.
+            snake->growth = 1;
+            //printf("snake did grow. Wohoo\n");
             if (previtem == NULL) {                                 // The first node is the one being deleted
                 *items = curritem->next_node;
                 free(curritem);
