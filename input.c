@@ -52,6 +52,10 @@ typedef struct ItemNode {
     struct ItemNode* next_node;
 } ItemNode;
     
+
+// updates snake and item values
+void slither (struct SnakeNode *, struct ItemNode *, char);
+
 // clear the screen
 void wash (struct SnakeNode *, struct ItemNode *);
 
@@ -79,7 +83,6 @@ int main (int argc, char *argv[]) {
     comm_data.mutex = mutex;
     comm_data.perm_char = &input_char;
     
-    // estalishing initial game state.
     // Launches input thread
     init (&comm_data);
 
@@ -96,10 +99,9 @@ int main (int argc, char *argv[]) {
     struct ItemNode *items = NULL;
 
     while (1) {
-        paint(snake, items);
+        wash(snake, items);
         pthread_mutex_lock(&mutex);
-        //wrefresh(stdscr);
-
+        slither (snake, items, input_char);
         //  wash(snake, items)                  // replace all map symbols with a blank
         //  slither(snake, items, input_char)   // movement calulations. Updates game state
         //  evalState(snake, items)             // check if game has reached and end state. Exit if so.
@@ -108,14 +110,68 @@ int main (int argc, char *argv[]) {
         
         pthread_mutex_unlock(&mutex);
         sleep(4);
-        wash(snake, items);
+        paint(snake, items);
         if (input_char == 'd') break;
         sleep(2);
     } 
-
-
     endwin(); 
     exit(0);
+}
+
+
+void slither (struct SnakeNode *snake, struct ItemNode *items, char direction) {
+
+    /*** first determine the next coordinates for the snake's head ****/
+    int next_h = snake->h;
+    int next_w = snake->w;
+
+    if (direction == 'w') {
+        next_h = snake->h - 1;
+    }
+    else if (direction == 'a') {
+        next_w = snake->w - 1;
+    }
+    else if (direction == 's') {
+        next_h = snake->h + 1;
+    }
+    else if (direction == 'd') {
+        next_w = snake->w + 1;
+    }
+   
+    // propogate coordinates down the snake
+    int old_h, old_w;       
+    struct SnakeNode *currnode = snake;
+
+    while (currnode->next_node != NULL) {
+        // save snake coords before updating
+        old_h = currnode->h;
+        old_w = currnode->w;
+        // now update the snake node
+        currnode->h = next_h;
+        currnode->w = next_w;
+        currnode = currnode->next_node;
+        // and what was once old is now new
+        next_h = old_h; 
+        next_w = old_w;
+    }
+
+    // base case: tail node
+    if (currnode->growth) {     // transfer old tail node data to new before updating coordinates
+        currnode->growth = 0;
+        old_h = currnode->h;
+        old_w = currnode->w;
+        // create the new tail
+        struct SnakeNode *temp = malloc(sizeof(struct SnakeNode *));
+        temp->h = old_h;
+        temp->w = old_w;
+        temp->next_node = NULL;
+        temp->growth = 0;        
+
+    }
+    
+    // update coordinates of former tail
+    currnode->h = next_h;
+    currnode->w = next_w;
 }
 
 void wash (struct SnakeNode *snake, struct ItemNode *items) {
