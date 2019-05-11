@@ -59,7 +59,7 @@ void spawnItems (struct SnakeNode *, struct ItemNode **);
 void evalState (struct SnakeNode *);
 
 // updates snake and item values
-void slither (struct SnakeNode *, struct ItemNode *, char);
+void slither (struct SnakeNode *, struct ItemNode **, char);
 
 // clear the screen
 void wash (struct SnakeNode *, struct ItemNode *);
@@ -103,24 +103,25 @@ int main (int argc, char *argv[]) {
     // init empty item list
     struct ItemNode *items = NULL;
 
+    // sleep timer
+    struct timespec nap;
+    nap.tv_sec = 0;
+    nap.tv_nsec = 90000000;
+        
+    
     while (1) {
         wash(snake, items);                     // replace all map symbols with a blank (' ')
         pthread_mutex_lock(&mutex);
-        slither (snake, items, input_char);     // movement calculations. Updates game state
+        slither (snake, &items, input_char);     // movement calculations. Updates game state
         evalState(snake);                       // check if game has reached and end state. Exit if so.
         spawnItems(snake, &items);               // spawn food for the snake
         
         pthread_mutex_unlock(&mutex);
         paint(snake, items);                    // draw new game state to terminal
         if (input_char == 'q') break;
-        sleep(1);
-        struct ItemNode *temp = items;
-        int i = 0;
-        while (temp != NULL) {
-            //printf("counter is: %d\n", i++);
-            temp = temp->next_node;
-        }
-        //if (items != NULL) printf("items not null..yay!\n");
+        //sleep(1);
+        nanosleep(&nap, NULL);
+        //printf("heartbeat\n");
     } 
     endwin(); 
     exit(0);
@@ -155,15 +156,16 @@ void evalState (struct SnakeNode *snake) {
 void spawnItems (struct SnakeNode *snake, struct ItemNode **items) {
 
     // roll spawn chance
-    if ((rand() % 2) <= 2) {        // aiming for 25% chance of spawning item per tick.
+    if ((rand() % 4) == 1) {        // aiming for 25% chance of spawning item per tick.
         //printf("item should be spawning\n");
         // coord vars
         int mxh, mxw;               
         getmaxyx(stdscr, mxh, mxw);
-        int h = rand() % mxh;
-        int w = rand() % mxw;
+        int h, w;                   // hold new coordinates
 
         while (1) {                 // loop until an available space is found
+            h = rand() % mxh;
+            w = rand() % mxw;
             int fail = 0;
             // first check the snake nodes   
             struct SnakeNode *temp_s = snake;
@@ -178,6 +180,7 @@ void spawnItems (struct SnakeNode *snake, struct ItemNode **items) {
             // now check item list
             struct ItemNode *temp_i = *items;
             while (temp_i != NULL) {
+                //printf("stuck here\n");
                 if (temp_i->h == h && temp_i->w == w) {
                     fail = 1;
                     break;
@@ -208,7 +211,7 @@ void spawnItems (struct SnakeNode *snake, struct ItemNode **items) {
     }
 }
 
-void slither (struct SnakeNode *snake, struct ItemNode *items, char direction) {
+void slither (struct SnakeNode *snake, struct ItemNode **items, char direction) {
 
     /*** first determine the next coordinates for the snake's head ****/
     int next_h = snake->h;
@@ -268,7 +271,46 @@ void slither (struct SnakeNode *snake, struct ItemNode *items, char direction) {
     //  currnode->growth = 1;
     //  //cut item from the items list
     //  free(consumed_item)
+   
+    // deal with case: items is only one node 
+    // this may actually be unnecessary
+    //printf("this far? 00\n");
+    if (*items == NULL) {
+        return;
+    }
+
+    if ((*items)->next_node == NULL) {
+        //printf("found it, eh?\n");
+        if ((*items)->h == snake->h && (*items)->w == snake->w) {
+            free(*items);
+            *items = NULL;
+            return;
+        }
+    }
+
+    //printf("this far? 11\n");
+    struct ItemNode *previtem, *curritem;
+    previtem = NULL; curritem = *items;
+    while (curritem != NULL) {
+        //printf("this far?\n");
+        if (curritem->h == snake->h && curritem->w == snake->w) {   // snake did eat.
+            if (previtem == NULL) {                                 // The first node is the one being deleted
+                *items = curritem->next_node;
+                free(curritem);
+                return;
+            }
+            else {
+                previtem->next_node = curritem->next_node;
+                free(curritem); 
+                return;
+            }
+        }
+        previtem = curritem;
+        curritem = curritem->next_node;
+
+    }
 }
+
 
 void wash (struct SnakeNode *snake, struct ItemNode *items) {
 
