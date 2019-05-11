@@ -1,5 +1,4 @@
 /*
- *  BUGS: I think the mutex is being destoryed in the stack frame calling pthread_create, causing error when other thread attempts to lock
  *
  *  -----Design decisions
  *
@@ -31,10 +30,33 @@
 #include <curses.h>
 
 
-typedef struct ThreadInput{
+// shared variables between threads
+typedef struct ThreadInput {
     pthread_mutex_t mutex;
     char *perm_char;
 } ThreadInput;
+
+
+// track snake parts on the grid
+typedef struct SnakeNode {
+    int h;
+    int w;
+    struct SnakeNode* next_node;
+    int growth;
+} SnakeNode;
+
+// track food positions on the grid
+typedef struct ItemNode {
+    int h;
+    int w;
+    struct ItemNode* next_node;
+} ItemNode;
+    
+// clear the screen
+void wash (struct SnakeNode *, struct ItemNode *);
+
+// populate screen with pixels, yo
+void paint (struct SnakeNode *, struct ItemNode *);
 
 // initialize program state
 void init (ThreadInput *);
@@ -61,10 +83,21 @@ int main (int argc, char *argv[]) {
     // Launches input thread
     init (&comm_data);
 
+    // init snake
+    struct SnakeNode *snake = malloc (sizeof(struct SnakeNode));
+    snake->h = 10;
+    snake->w = 10; 
+    snake->next_node = malloc (sizeof(struct SnakeNode));
+    snake->next_node->h = 11;
+    snake->next_node->w = 10;
+    snake->next_node->next_node = NULL;
+
+    // init empty item list
+    struct ItemNode *items = NULL;
 
     while (1) {
+        paint(snake, items);
         pthread_mutex_lock(&mutex);
-        //waddch(stdscr, input_char);
         //wrefresh(stdscr);
 
         //  wash(snake, items)                  // replace all map symbols with a blank
@@ -73,10 +106,11 @@ int main (int argc, char *argv[]) {
         //  spawnItems(snake, items)            // spawn food for the snake
         //  paint(snake, items)                 // draw the new game state
         
-        waddch(stdscr, input_char);
         pthread_mutex_unlock(&mutex);
-        sleep(1);
+        sleep(4);
+        wash(snake, items);
         if (input_char == 'd') break;
+        sleep(2);
     } 
 
 
@@ -84,6 +118,55 @@ int main (int argc, char *argv[]) {
     exit(0);
 }
 
+void wash (struct SnakeNode *snake, struct ItemNode *items) {
+
+    // remove the snake 
+    while (snake != NULL) {
+        wmove(stdscr, snake->h, snake->w);
+        waddch(stdscr, ' ');
+        snake = snake->next_node;
+    }  
+    
+    while (items != NULL) {
+        wmove(stdscr, items->h, items->w);
+        waddch(stdscr, ' ');
+        items = items->next_node;
+    }
+    wrefresh(stdscr);
+}
+
+
+void paint (struct SnakeNode *snake, struct ItemNode *items) {
+
+
+    /***** Snake first  *****/
+    // first paint the snake
+    // head is different char than the body
+    wmove(stdscr, snake->h, snake->w);  // print the head
+    waddch(stdscr, '@');
+
+    // traverse the snake's list, printing as we go
+    snake = snake->next_node;
+    while (snake != NULL) {
+        wmove(stdscr, snake->h, snake->w);
+        waddch(stdscr, 'O');
+        snake = snake->next_node;
+    }
+
+
+    /****  Now items  *****/
+    while (items != NULL) {
+        wmove(stdscr, items->h, items->w);
+        waddch(stdscr, '8');
+        items = items->next_node;
+    } 
+    wrefresh(stdscr);
+}
+    
+
+
+// initializes game state and launches child thread.
+// not responsible for snake or item initialization
 void init (ThreadInput *comm_data) {
 
     // first begin by establishing the curses stuff
@@ -101,7 +184,6 @@ void init (ThreadInput *comm_data) {
     pthread_t input_thread;                                     
     // create thread
     wmove(stdscr, 10, 10);
-    //waddch(stdscr, '8');
     pthread_create(&input_thread, NULL, (void *)&userInput, (void *)comm_data);
 }
 
@@ -113,8 +195,8 @@ void userInput (ThreadInput *input) {
     while (1) {
         if ( (temp_ch = getch()) != ERR) {
             if (temp_ch == 'w' || temp_ch == 'a' || temp_ch == 's' || temp_ch == 'd') {
-                pthread_mutex_lock(&(input->mutex));    // program breaks
-                *(input->perm_char) = temp_ch;        // program break
+                pthread_mutex_lock(&(input->mutex));    
+                *(input->perm_char) = temp_ch;        
                 pthread_mutex_unlock(&(input->mutex));
             }
         }
@@ -135,6 +217,4 @@ void printBorder(int h, int w) {
             }
         }
     }
- 
-
 }
