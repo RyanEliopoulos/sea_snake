@@ -1,5 +1,13 @@
 /*
  *
+ *  NOTE: 'items' in the context of this program is only referring to food at this point.
+ *         I envisioned a variety if potential food and non-food items. Only basic food exists currently
+ *
+ *  NOTE: allocated memory is not free'd. Would need fnx to traverse snake, items.
+ *
+ *  NOTE: using another thread is probably not needed. I think this just ended up polling user input tons for no reason.
+ *         just integrate the getch() call in the main program loop.
+ *
  *  -----Design decisions
  *
  *  Hitting the wall kills the snake.
@@ -16,7 +24,6 @@
  *  ----Functions
  *
  *  evalState is not complete. Need to check if snake hits itself
- *  slither is not complete. Still need eating logic. OK it eats but isn't growing
  */
 
 
@@ -149,6 +156,18 @@ void evalState (struct SnakeNode *snake) {
     }
 
     // then check if snake hit itself
+    int new_h = snake->h;
+    int new_w = snake->w;
+    snake = snake->next_node; 
+    while (snake != NULL) {
+        if (snake->h == new_h && snake->w == new_w) {
+            printf("ouch!\n");  
+            sleep(1);
+            endwin();
+            exit(0);
+        }
+        snake = snake->next_node;
+    }
 }
 
 
@@ -322,10 +341,8 @@ void slither (struct SnakeNode *snake, struct ItemNode **items, char direction) 
         }
         previtem = curritem;
         curritem = curritem->next_node;
-
     }
 }
-
 
 void wash (struct SnakeNode *snake, struct ItemNode *items) {
 
@@ -335,7 +352,8 @@ void wash (struct SnakeNode *snake, struct ItemNode *items) {
         waddch(stdscr, ' ');
         snake = snake->next_node;
     }  
-    
+
+    // remove the food    
     while (items != NULL) {
         wmove(stdscr, items->h, items->w);
         waddch(stdscr, ' ');
